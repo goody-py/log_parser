@@ -4,36 +4,33 @@
 import os
 import gzip
 import fnmatch
-import json
-from string import Template
 from collections import namedtuple
+import logging
 
 from const import LOG_PREFIX
 from parsers import parse_file_name, parse_log_string
 
 
-unparsed_files = []
-
-
 ParsedFileName = namedtuple('ParsedFileName', ['file_path', 'parsed_date', 'extension'])
 
 
-# TODO fill correct exceptions handlers and add the logging
+# TODO fill correct exceptions handlers
 def yield_line_from_file(file_namedtuple):
     openers = {None: open, 'gz': gzip.open}
     opener = openers.get(file_namedtuple.extension)
     if not opener:
+        logging.exception('Can\'t find file opener. Please make sure that log exists and log file is in text/.gz format')
         raise TypeError('Not appropriate file type.\n'
-                        'Received file:{0}.\nSupported file types: {1}.\n'.format(file_namedtuple.file_path,
-                                                                                  openers.keys())
+                        'Received file:{0}.\nSupported file types: plain-text/.gz .\n'.format(file_namedtuple.file_path)
                         )
     with opener(file_namedtuple.file_path, 'r') as file:
         for line in file:
             yield line.encode('utf-8')
 
 
-#TODO rename function
+# TODO rename function
 def get_file_to_open(directory_path):
+    unparsed_files = []
     max_parsed_filename = None
     max_date_filename = None
     log_path = os.path.abspath(directory_path)
@@ -48,7 +45,11 @@ def get_file_to_open(directory_path):
             max_parsed_filename = parsed_file_name
             max_date_filename = filename
 
+    logging.info('Unparsed files in provided log directory: {0}. '
+                 'Unparsed files list: {1}'.format(len(unparsed_files), unparsed_files))
+
     if not max_parsed_filename:
+        logging.info('There is no log files to handle. Provided log path: {}'.format(directory_path))
         return None
 
     return ParsedFileName(
@@ -56,7 +57,6 @@ def get_file_to_open(directory_path):
         parsed_date=max_parsed_filename['date'],
         extension=max_parsed_filename['extension'] or None
     )
-
 
 
 def get_report_name(parsed_file_name):
@@ -67,39 +67,10 @@ def get_report_name(parsed_file_name):
 
 def is_report_exist(report_name, report_path):
     if not report_name:
+        logging.exception('Report file name was not provide')
         raise ValueError('Please provide report file name!')
     if not os.path.exists(report_path):
-        os.mkdir(report_directory)
+        os.mkdir(report_path)
+        logging.info('Report directory was created: {}'.format(report_path))
         return False
     return bool(fnmatch.filter(os.listdir(report_path), report_name))
-
-
-if __name__ == '__main__':
-    from counter import get_parsed_data
-    from log_parser import config
-    import sys
-
-    report_template_path = os.path.abspath(config['TEMPLATE_PATH'])
-    if not os.path.exists(report_template_path):
-        print 'REPORT TEMPLATE DOESN\'T EXIST!'
-        sys.exit()
-    file_to_open = get_file_to_open(config['LOG_DIR'])
-    if not file_to_open:
-        print 'There is no log file to open'
-        sys.exit()
-    rep_name =  get_report_name(file_to_open)
-    report_directory = os.path.abspath(config['REPORT_DIR'])
-    # print os.path.join(report_directory, rep_name)
-    if is_report_exist(rep_name, report_directory):
-        print 'REPORT ALREADY EXIST'
-        sys.exit()
-    data = get_parsed_data(yield_line_from_file(file_to_open), 10)
-    final_data = json.dumps([item for item in data])
-    if not final_data:
-        print 'THERE IS NO DATA TO WRITE!'
-        sys.exit()
-    with open(report_template_path, 'r') as f:
-        data_template = Template(f.read())
-        with open(os.path.join(report_directory, rep_name), 'w') as f2:
-            f2.write(data_template.safe_substitute(table_json=final_data).encode('utf-8'))
-

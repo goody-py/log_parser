@@ -8,6 +8,7 @@
 """
 import re
 import datetime
+import logging
 
 from const import LOG_PREFIX
 
@@ -39,12 +40,15 @@ def parse_file_name(filename):
     """
     parsed = re.search(FILE_NAME_PATTERN, filename)
     if not parsed:
+        logging.error('Can\'t parse log filename. Please make sure that file regexp is fine. '
+                      'Provided file name: {}'.format(filename))
         return None
     parsed_dict = parsed.groupdict()
     try:
         parsed_dict['date'] = datetime.datetime.strptime(parsed_dict['date'], '%Y%m%d')
     except ValueError as ex:
-        #TODO logging
+        logging.exception('Can\'t parse filename date. Please make sure that date format in log name is fine. '
+                          'Provided filename: {0} . {1}'.format(filename, ex))
         return None
 
     return parsed_dict
@@ -53,7 +57,8 @@ def parse_file_name(filename):
 def parse_log_string(log_string):
     parsed = re.search(LOG_FORMAT_PATTERN, log_string)
     if not parsed:
-        # TODO logging
+        logging.error('Can\'t parse log string. Please make sure that log format regexp is fine. '
+                      'Provided log string: {}'.format(log_string))
         return None
     parsed_dict = parsed.groupdict()
     return {'request': parsed_dict['request'], 'request_time': float(parsed_dict['request_time'])}
@@ -61,5 +66,3 @@ def parse_log_string(log_string):
 
 if __name__ == '__main__':
     a = '''1.200.76.128 f032b48fb33e1e692  - [29/Jun/2017:06:12:58 +0300] "GET /api/1/campaigns/?id=1003206 HTTP/1.1" 200 614 "-" "-" "-" "1498705978-4102637017-4707-9891931" "-" 0.141'''
-    print parse_log_string(a)
-

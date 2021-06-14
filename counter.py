@@ -3,10 +3,13 @@
 
 from array import array
 from collections import defaultdict
+import logging
 
 from parsers import parse_log_string
 
-FAILURE_PERCENTAGE = 0.4
+
+FAILURE_PERCENTAGE = 40
+
 
 round_to_third_digit = lambda number: round(number, 3)
 
@@ -28,13 +31,12 @@ def get_parsed_data(raw_row_chain, report_size):
 
     parsed_data = defaultdict(get_start_parsed_data_value)
     all_row_counter = 0
-    empty_or_unparsed_row_counter = 0
+    empty_or_unparsed_row_counter = 0.0
     all_requests_time_counter = 0
 
     for row in raw_row_chain:
         parsed_str = parse_log_string(row)
         if not parsed_str:
-            #TODO logging, % failure
             empty_or_unparsed_row_counter += 1
             continue
 
@@ -48,14 +50,16 @@ def get_parsed_data(raw_row_chain, report_size):
         all_row_counter += 1
         all_requests_time_counter += request_time
 
-    # TODO correct Error
-    if empty_or_unparsed_row_counter / all_row_counter >= FAILURE_PERCENTAGE:
-        raise ValueError('Unparsed row percentage above the limit,'
-                         'you need to check log file or regular ex of the row parser}')
+    failure_percentage = empty_or_unparsed_row_counter * 100 / all_row_counter
+    logging.info('Failure row parsing percentage is :{}%'.format(failure_percentage))
+    if failure_percentage >= FAILURE_PERCENTAGE:
+        logging.error('Unparsed rows are above the limit. Please make sure that log file is not corrupted or check '
+                      'the log parser regexp. Failure percentage: {}%'.format(failure_percentage))
+        raise ValueError('Unparsed row percentage is above the limit,'
+                         'you need to check log file or regexp of the row parser}')
 
     for url, query_stats in iter(
             sorted(parsed_data.iteritems(), key=_get_time_sum_value, reverse=True)[:report_size]):
-        # TODO do something with round
         yield {
             'url': url,
             'count': query_stats['query_counter'],
