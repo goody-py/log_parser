@@ -1,21 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
- log_format ui_short '$remote_addr $remote_user $http_x_real_ip
- [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"
- "$http_x_forwarded_for" "$http_X_REQUEST_ID" "$http_X_RB_USER" $request_time
-"""
 import re
 import datetime
 import logging
 
 from const import LOG_PREFIX
 
-
+# Log filename format 'LOG_PREFIX.log-%Y%m%d', extension can be omitted
 FILE_NAME_PATTERN = re.compile('(?P<file_name>%s).log-(?P<date>\d{8}).?(?P<extension>\S*)' % LOG_PREFIX)
 
-
+# log_format ui_short '$remote_addr $remote_user $http_x_real_ip
+# [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"
+# "$http_x_forwarded_for" "$http_X_REQUEST_ID" "$http_X_RB_USER" $request_time
 LOG_FORMAT_PATTERN = re.compile(
     '(?P<remote_addr>^\S+)\s*'
     '\s*(?P<remote_user>\S+)\s*'
@@ -34,9 +31,9 @@ LOG_FORMAT_PATTERN = re.compile(
 
 
 def parse_file_name(filename):
-    """
-        Log extension must be in the format 'LOG_PREFIX.log-%Y%m%d'
-        filename:  str - the name of the log file itself e.g. 'LOG_PREFIX.log-20170630.gz'
+    """ Using FILE_NAME_PATTERN to parse filename string to dict
+    filename:  str - the name of the log file itself e.g. 'LOG_PREFIX.log-20170630.gz'
+    return: dict
     """
     parsed = re.search(FILE_NAME_PATTERN, filename)
     if not parsed:
@@ -55,6 +52,10 @@ def parse_file_name(filename):
 
 
 def parse_log_string(log_string):
+    """ Using LOG_FORMAT_PATTERN to extract request and request_time from log string.
+    log_string: str - log string from file
+    return: dict
+    """
     parsed = re.search(LOG_FORMAT_PATTERN, log_string)
     if not parsed:
         logging.error('Can\'t parse log string. Please make sure that log format regexp is fine. '

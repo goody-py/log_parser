@@ -14,8 +14,10 @@ from parsers import parse_file_name, parse_log_string
 ParsedFileName = namedtuple('ParsedFileName', ['file_path', 'parsed_date', 'extension'])
 
 
-# TODO fill correct exceptions handlers
 def yield_line_from_file(file_namedtuple):
+    """ Yield raw row from received file
+    file_namedtuple: ParsedFileName - namedtuple with log file data
+    """
     openers = {None: open, 'gz': gzip.open}
     opener = openers.get(file_namedtuple.extension)
     if not opener:
@@ -28,8 +30,11 @@ def yield_line_from_file(file_namedtuple):
             yield line.encode('utf-8')
 
 
-# TODO rename function
-def get_file_to_open(directory_path):
+def find_last_log_to_process(directory_path):
+    """ Return log file with max date from received directory
+    directory_path: str - path to log directory
+    return: None|ParsedFileName
+    """
     unparsed_files = []
     max_parsed_filename = None
     max_date_filename = None
@@ -60,12 +65,21 @@ def get_file_to_open(directory_path):
 
 
 def get_report_name(parsed_file_name):
+    """ Return report filename
+    parsed_file_name: ParsedFileName
+    return: str - report name
+    """
     if not parsed_file_name:
         return None
     return 'report-{}.html'.format(parsed_file_name.parsed_date.strftime('%Y.%m.%d'))
 
 
 def is_report_exist(report_name, report_path):
+    """ Check if report already exists
+    report_name: str - report file name
+    report_path: str - path to report directory
+    return: bool
+    """
     if not report_name:
         logging.exception('Report file name was not provide')
         raise ValueError('Please provide report file name!')
