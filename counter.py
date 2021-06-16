@@ -11,7 +11,8 @@ from parsers import parse_log_string
 FAILURE_PERCENTAGE = 40
 
 
-round_to_third_digit = lambda number: round(number, 3)
+def round_to_third_digit(number):
+    return round(number, 3)
 
 
 def get_start_parsed_data_value():

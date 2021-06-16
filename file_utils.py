@@ -7,8 +7,7 @@ import fnmatch
 from collections import namedtuple
 import logging
 
-from const import LOG_PREFIX
-from parsers import parse_file_name, parse_log_string
+from parsers import parse_file_name, LOG_PREFIX
 
 
 ParsedFileName = namedtuple('ParsedFileName', ['file_path', 'parsed_date', 'extension'])
@@ -58,7 +57,7 @@ def find_last_log_to_process(directory_path):
         return None
 
     return ParsedFileName(
-        file_path=os.path.join(os.path.abspath(log_path),max_date_filename),
+        file_path=os.path.join(os.path.abspath(log_path), max_date_filename),
         parsed_date=max_parsed_filename['date'],
         extension=max_parsed_filename['extension'] or None
     )
