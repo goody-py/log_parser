@@ -8,8 +8,9 @@ import logging
 
 # Log file prefix
 LOG_PREFIX = 'nginx-access-ui'
+FILE_DATE_FORMAT = '%Y%m%d'
 # Log filename format 'LOG_PREFIX.log-%Y%m%d', extension can be omitted
-FILE_NAME_PATTERN = re.compile(r'(?P<file_name>%s).log-(?P<date>\d{8}).?(?P<extension>\S*)' % LOG_PREFIX)
+FILE_NAME_PATTERN = re.compile(r'(?P<file_name>%s)\S*.log-(?P<date>\d{8}).?(?P<extension>\S*)' % LOG_PREFIX)
 
 # log_format ui_short '$remote_addr $remote_user $http_x_real_ip
 # [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"
@@ -43,7 +44,7 @@ def parse_file_name(filename):
         return None
     parsed_dict = parsed.groupdict()
     try:
-        parsed_dict['date'] = datetime.datetime.strptime(parsed_dict['date'], '%Y%m%d')
+        parsed_dict['date'] = datetime.datetime.strptime(parsed_dict['date'], FILE_DATE_FORMAT).date()
     except ValueError as ex:
         logging.exception('Can\'t parse filename date. Please make sure that date format in log name is fine. '
                           'Provided filename: {0} . {1}'.format(filename, ex))
