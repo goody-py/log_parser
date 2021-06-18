@@ -2,13 +2,15 @@
 # -*- coding: utf-8 -*-
 
 import unittest
+import os
 import tempfile
 import shutil
 import datetime
 import random
 
 from file_utils import (yield_line_from_file, ParsedFileName, find_last_log_to_process,
-                        get_report_name, is_report_exist)
+                        get_report_name, is_report_exist, REPORT_NAME, REPORT_DATE_FORMAT)
+
 from parsers import LOG_PREFIX, FILE_DATE_FORMAT
 
 
@@ -17,10 +19,10 @@ class FindLastLogTest(unittest.TestCase):
     FILE_PREFIX = LOG_PREFIX + '.'
 
     @staticmethod
-    def generate_random_list_of_dates():
+    def generate_random_list_of_unique_dates():
         start_time = datetime.date.today()
         # Since we can have only one report per day - all days must be unique
-        r_values = {random.randint(1, 1095) for _ in xrange(4)}
+        r_values = {random.randint(1, 1095) for _ in xrange(10)}
         return [(start_time - datetime.timedelta(days=r_values.pop())) for _ in xrange(len(r_values))]
 
     @staticmethod
@@ -31,7 +33,7 @@ class FindLastLogTest(unittest.TestCase):
     def setUp(cls):
         cls.temp_directory = tempfile.mkdtemp()
         # Initiate max date and create other files
-        random_dates = cls.generate_random_list_of_dates()
+        random_dates = cls.generate_random_list_of_unique_dates()
         cls.max_date = random_dates.pop(random_dates.index(max(random_dates)))
 
         for date in random_dates:
@@ -58,8 +60,27 @@ class FindLastLogTest(unittest.TestCase):
 
         self.assertIsNone(find_last_log_to_process(self.temp_directory).extension)
 
+    def test_get_report_name(self):
+        tempfile.mkstemp(prefix=self.FILE_PREFIX,
+                         suffix=self.get_strf_log_string_date(self.max_date),
+                         dir=self.temp_directory)
+
+        self.assertEqual(REPORT_NAME.format(self.max_date.strftime(REPORT_DATE_FORMAT)),
+                         get_report_name(find_last_log_to_process(self.temp_directory)))
+
+    def test_is_report_exist_report_exist(self):
+        report_file = tempfile.mkstemp(prefix=REPORT_NAME.format(''),
+                                       suffix=self.get_strf_log_string_date(self.max_date),
+                                       dir=self.temp_directory)
+
+        self.assertTrue(is_report_exist(os.path.basename(report_file[1]), self.temp_directory))
+
+    def test_is_report_exist_report_doesnt_exist(self):
+        report_file_name = get_report_name(ParsedFileName(None, self.max_date, None))
+
+        self.assertFalse(is_report_exist(report_file_name, self.temp_directory))
+
 
 if __name__ == '__main__':
-
-    future_fixture = '''1.200.76.128 f032b48fb33e1e692  - [29/Jun/2017:06:12:58 +0300] "GET /api/1/campaigns/?id=1003206 HTTP/1.1" 200 614 "-" "-" "-" "1498705978-4102637017-4707-9891931" "-" 0.141'''
+    # future_fixture = '''1.200.76.128 f032b48fb33e1e692  - [29/Jun/2017:06:12:58 +0300] "GET /api/1/campaigns/?id=1003206 HTTP/1.1" 200 614 "-" "-" "-" "1498705978-4102637017-4707-9891931" "-" 0.141'''
     unittest.main()

@@ -35,7 +35,7 @@ def yield_report_row(raw_row_chain, report_size):
 
     def _get_time_sum_value(parsed_data_tuple):
         """ Return time_sum value
-        parsed_data_tuple: tuple - (url, parsed_data_value)"""
+        parsed_data_tuple: tuple - (url, data_item)"""
         return parsed_data_tuple[1]['time_sum']
 
     parsed_data = defaultdict(get_start_parsed_data_value)

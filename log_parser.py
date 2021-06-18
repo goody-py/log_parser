@@ -102,7 +102,7 @@ def get_result_config_dict(_config):
     arguments_config_values = filter_none_dict_values(arguments_dict)
     passed_config = filter_none_dict_values(get_config_from_config_file(passed_config_path))
     default_config = filter_none_dict_values(get_config_from_config_file(DEFAULT_CONFIG_PATH))
-    __config = get_dict_with_lower_case_keys(copy.deepcopy(_config))
+    __config = get_dict_with_lower_case_keys(copy.copy(_config))
 
     __config.update(default_config)
     __config.update(passed_config)

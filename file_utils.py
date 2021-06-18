@@ -9,6 +9,9 @@ import logging
 
 from parsers import parse_file_name, LOG_PREFIX
 
+REPORT_NAME = 'report-{}.html'
+REPORT_DATE_FORMAT = '%Y.%m.%d'
+
 
 ParsedFileName = namedtuple('ParsedFileName', ['file_path', 'parsed_date', 'extension'])
 
@@ -70,7 +73,7 @@ def get_report_name(parsed_file_name):
     """
     if not parsed_file_name:
         return None
-    return 'report-{}.html'.format(parsed_file_name.parsed_date.strftime('%Y.%m.%d'))
+    return REPORT_NAME.format(parsed_file_name.parsed_date.strftime(REPORT_DATE_FORMAT))
 
 
 def is_report_exist(report_name, report_path):
