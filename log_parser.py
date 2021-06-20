@@ -17,11 +17,11 @@ from file_utils import yield_line_from_file, find_last_log_to_process, get_repor
 DEFAULT_CONFIG_PATH = './log_parser.cfg'
 
 LOGGING_FORMAT = '[%(asctime)s] %(levelname).1s %(message)s'
-LOGGING_DATE_FORMAT = '%Y.%m.%d $H:%M:%S'
+LOGGING_DATE_FORMAT = '%Y.%m.%d %H:%M:%S'
 
 
 config = {
-    'REPORT_SIZE': 10,
+    'REPORT_SIZE': 100,
     'REPORT_DIR': './reports',
     'LOG_DIR': './log',
     'TEMPLATE_PATH': './report.html',
@@ -45,11 +45,11 @@ def _setup_logger(logging_level, logging_path=None):
 
 
 def get_call_arguments():
-    """ Parsing and return arguments from sys.argv[1:]
+    """ Parse and return arguments from sys.argv[1:]
     return: dict - parsed received arguments
     """
     parser = argparse.ArgumentParser(
-        description='Tool for parsing nginx logs, log format described in parsers.py . '
+        description='Tool for parsing nginx logs, log format described in parsers.py. '
                     'All configurations will be prioritized in descending order and merged: '
                     'Passed arguments -> Passed config path -> Default config path -> log_parser.py/config'
     )
@@ -58,6 +58,7 @@ def get_call_arguments():
     parser.add_argument('-rd', '--report-dir', help='Path to the report directory')
     parser.add_argument('-ld', '--log-dir', help='Path lo the log directory')
     parser.add_argument('-tp', '--template-path', help='Path to template')
+    parser.add_argument('-llv', '--logging-level', help='DEBUG|ERROR|CRITICAL')
     return vars(parser.parse_args())
 
 
@@ -70,7 +71,7 @@ def get_dict_with_lower_case_keys(_dict):
 
 
 def filter_none_dict_values(_dict):
-    """ Return new dict, which all values are not None
+    """ Return new dict which all values are not None
     """
     if not _dict:
         return {}
@@ -78,7 +79,7 @@ def filter_none_dict_values(_dict):
 
 
 def get_config_from_config_file(config_path):
-    """ Parsing config from received config file path
+    """ Parse config from received config file path
     return: dict
     """
     if not config_path:
@@ -92,7 +93,7 @@ def get_config_from_config_file(config_path):
 
 
 def get_result_config_dict(_config):
-    """ Merging all config values
+    """ Merge all config values
     return: dict
     """
     arguments_dict = get_call_arguments()
@@ -138,16 +139,19 @@ def main(_config):
 
     report_data = json.dumps([line for line in report_data])
 
-    if not report_data:
+    if report_data == json.dumps([]):
         logging.error('Parsed data result is empty. Please make sure, that provided log file is not empty')
         sys.exit()
 
-    with open(report_template_path, 'r') as f:
-        data_template = string.Template(f.read())
-        with open(os.path.join(report_directory, report_name), 'w') as f2:
+    with open(report_template_path, 'r') as report_template:
+        data_template = string.Template(report_template.read())
+        with open(os.path.join(report_directory, report_name), 'w') as processed_report:
             logging.info('Writing report to: {}'.format(os.path.join(report_directory, report_name)))
-            f2.write(data_template.safe_substitute(table_json=report_data).decode('utf-8'))
+            processed_report.write(data_template.safe_substitute(table_json=report_data).decode('utf-8'))
 
 
 if __name__ == '__main__':
-    main(config)
+    try:
+        main(config)
+    except Exception as ex:
+        logging.exception(ex)

@@ -3,6 +3,7 @@
 
 import unittest
 import os
+import gzip
 import tempfile
 import shutil
 import datetime
@@ -11,10 +12,10 @@ import random
 from file_utils import (yield_line_from_file, ParsedFileName, find_last_log_to_process,
                         get_report_name, is_report_exist, REPORT_NAME, REPORT_DATE_FORMAT)
 
-from parsers import LOG_PREFIX, FILE_DATE_FORMAT
+from parsers import parse_log_string, LOG_PREFIX, FILE_DATE_FORMAT
 
 
-class FindLastLogTest(unittest.TestCase):
+class FileUtilsTest(unittest.TestCase):
     # Because of the log format we need to add . to prefix
     FILE_PREFIX = LOG_PREFIX + '.'
 
@@ -81,6 +82,38 @@ class FindLastLogTest(unittest.TestCase):
         self.assertFalse(is_report_exist(report_file_name, self.temp_directory))
 
 
+class OpenerTest(unittest.TestCase):
+    def test_yield_line_from_file_text_file(self):
+        plain_text_fixture_path = os.path.join(os.path.curdir, 'fixtures/lorem_ipsum_text_test_fixture')
+        plain_text_iterator = yield_line_from_file(ParsedFileName(plain_text_fixture_path, None, None))
+        with open(plain_text_fixture_path, 'r') as f:
+            for line in f:
+                self.assertEqual(line.encode('utf-8'), next(plain_text_iterator))
+
+    def test_yield_line_from_file_gz_file(self):
+        gz_text_fixture_path = os.path.join(os.path.curdir, 'fixtures/lorem_ipsum_text_test_fixture.gz')
+        gz_file_iterator = yield_line_from_file(ParsedFileName(gz_text_fixture_path, None, 'gz'))
+        with gzip.open(gz_text_fixture_path, 'r') as f:
+            for line in f:
+                self.assertEqual(line.encode('utf-8'), next(gz_file_iterator))
+
+
+class ParseLogStringTest(unittest.TestCase):
+    LOG_ROW_FIXTURE = '1.200.76.128 f032b48fb33e1e692  - [29/Jun/2017:06:12:58 +0300] ' \
+                      '"GET /api/1/campaigns/?id=1003206 HTTP/1.1" 200 614 "-" "-" "-" ' \
+                      '"1498705978-4102637017-4707-9891931" "-" 141'
+
+    def test_parse_log_string(self):
+        self.assertEqual({'request': '/api/1/campaigns/?id=1003206', 'request_time': float(141)},
+                         parse_log_string(self.LOG_ROW_FIXTURE))
+
+
+file_utils_and_parse_log_stringTestSuite = unittest.TestSuite()
+file_utils_and_parse_log_stringTestSuite.addTest(unittest.makeSuite(FileUtilsTest))
+file_utils_and_parse_log_stringTestSuite.addTest(unittest.makeSuite(OpenerTest))
+file_utils_and_parse_log_stringTestSuite.addTest(unittest.makeSuite(ParseLogStringTest))
+
+
 if __name__ == '__main__':
-    # future_fixture = '''1.200.76.128 f032b48fb33e1e692  - [29/Jun/2017:06:12:58 +0300] "GET /api/1/campaigns/?id=1003206 HTTP/1.1" 200 614 "-" "-" "-" "1498705978-4102637017-4707-9891931" "-" 0.141'''
-    unittest.main()
+    runner = unittest.TextTestRunner(verbosity=2)
+    runner.run(file_utils_and_parse_log_stringTestSuite)
