@@ -9,10 +9,10 @@ import shutil
 import datetime
 import random
 
-from file_utils import (yield_line_from_file, ParsedFileName, find_last_log_to_process,
+from log_parser import (yield_line_from_file, ParsedFileName, find_last_log_to_process,
                         get_report_name, is_report_exist, REPORT_NAME, REPORT_DATE_FORMAT)
 
-from parsers import parse_log_string, LOG_PREFIX, FILE_DATE_FORMAT
+from log_parser import parse_log_string, LOG_PREFIX, FILE_DATE_FORMAT
 
 
 class FileUtilsTest(unittest.TestCase):
