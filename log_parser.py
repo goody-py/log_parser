@@ -22,6 +22,7 @@ LOGGING_DATE_FORMAT = '%Y.%m.%d %H:%M:%S'
 
 FAILURE_PERCENTAGE = 40
 
+
 REPORT_NAME = 'report-{}.html'
 REPORT_DATE_FORMAT = '%Y.%m.%d'
 
@@ -29,14 +30,15 @@ REPORT_DATE_FORMAT = '%Y.%m.%d'
 LOG_PREFIX = 'nginx-access-ui'
 FILE_DATE_FORMAT = '%Y%m%d'
 
-# TODO add logging level to cfg file
-DEFAULT_CONFIG_PATH = './log_parser.cfg'
+
 CONFIG = {
     'REPORT_SIZE': 100,
     'REPORT_DIR': './reports',
     'LOG_DIR': './log',
     'TEMPLATE_PATH': './report.html',
-    'LOGGING_LEVEL': 'CRITICAL'
+    'LOGGING_LEVEL': 'CRITICAL',
+    'DEFAULT_CONFIG_PATH': './log_parser.cfg'
+
 }
 
 # Log filename format 'LOG_PREFIX.log-%Y%m%d', extension can be omitted
@@ -134,17 +136,18 @@ def get_config_from_config_file(config_path):
         config['report_size'] = int(config['report_size'])
     return config
 
-# TODO looks like default config path can migrate to CONFIG
+
 def get_result_config_dict(config):
     """ Merge all config values
     return: dict
     """
     arguments_dict = get_call_arguments()
 
+    default_config_path = config.pop('DEFAULT_CONFIG_PATH')
     passed_config_path = arguments_dict.pop('config_path', None)
 
     passed_config = filter_none_dict_values(get_config_from_config_file(passed_config_path))
-    default_config = filter_none_dict_values(get_config_from_config_file(DEFAULT_CONFIG_PATH))
+    default_config = filter_none_dict_values(get_config_from_config_file(default_config_path))
     final_config = get_dict_with_lower_case_keys(copy.copy(config))
 
     final_config.update(default_config)
@@ -183,28 +186,6 @@ def yield_line_from_file(file_namedtuple):
             yield line.encode('utf-8')
 
 
-# TODO merge with find_last_log_to process
-def parse_file_name(filename):
-    """ Using FILE_NAME_PATTERN to parse filename string to dict
-    filename:  str - the name of the log file itself e.g. 'LOG_PREFIX.log-20170630.gz'
-    return: dict
-    """
-    parsed = re.search(FILE_NAME_PATTERN, filename)
-    if not parsed:
-        logging.error('Can\'t parse log filename. Please make sure that file regexp is fine. '
-                      'Provided file name: {}'.format(filename))
-        return None
-    parsed_dict = parsed.groupdict()
-    try:
-        parsed_dict['date'] = datetime.datetime.strptime(parsed_dict['date'], FILE_DATE_FORMAT).date()
-    except ValueError as ex:
-        logging.exception('Can\'t parse filename date. Please make sure that date format in log name is fine. '
-                          'Provided filename: {0} . {1}'.format(filename, ex))
-        return None
-
-    return parsed_dict
-
-
 def find_last_log_to_process(directory_path):
     """ Return log file with max date from received directory
     directory_path: str - path to log directory
@@ -214,12 +195,22 @@ def find_last_log_to_process(directory_path):
     max_date_filename = None
     log_path = os.path.abspath(directory_path)
     for filename in os.listdir(log_path):
-        if re.match(FILE_NAME_PATTERN, filename):
-            parsed_file_name = parse_file_name(filename)
-            if max_parsed_filename and max_parsed_filename['date'] > parsed_file_name['date']:
-                continue
-            max_parsed_filename = parsed_file_name
-            max_date_filename = filename
+        parsed_filename = re.search(FILE_NAME_PATTERN, filename)
+        if not parsed_filename:
+            return None
+
+        parsed_filename = parsed_filename.groupdict()
+        try:
+            parsed_filename['date'] = datetime.datetime.strptime(parsed_filename['date'], FILE_DATE_FORMAT).date()
+        except ValueError as ex:
+            logging.exception('Can\'t parse filename date. Please make sure that date format in log name is fine. '
+                              'Provided filename: {0} . {1}'.format(filename, ex))
+            return None
+
+        if max_parsed_filename and max_parsed_filename['date'] > parsed_filename['date']:
+            continue
+        max_parsed_filename = parsed_filename
+        max_date_filename = filename
 
     if not max_parsed_filename:
         logging.info('There is no log files to handle. Provided log path: {}'.format(directory_path))
@@ -231,7 +222,7 @@ def find_last_log_to_process(directory_path):
         extension=max_parsed_filename['extension'] or None
     )
 
-# TODO think about None values
+
 def get_report_name(parsed_file_name):
     """ Return report filename
     parsed_file_name: ParsedFileName
@@ -240,17 +231,6 @@ def get_report_name(parsed_file_name):
     if not parsed_file_name:
         return None
     return REPORT_NAME.format(parsed_file_name.parsed_date.strftime(REPORT_DATE_FORMAT))
-
-# TODO think about None values
-def is_report_exist(report_name, report_path):
-    """ Check if report already exists
-    report_name: str - report file name
-    report_path: str - path to report directory
-    return: bool
-    """
-    if not report_name:
-        return None
-    return os.path.exists(os.path.join(report_path, report_name))
 
 
 def yield_report_row(raw_row_chain, report_size):
@@ -308,9 +288,25 @@ def yield_report_row(raw_row_chain, report_size):
         }
 
 
-# TODO refactor with None function values from functions
-def main(_config):
-    result_config = get_result_config_dict(_config)
+def write_template_report(report_template_path, report_path, report_data):
+    """ Substitute report data to report template and create report file
+    report_template_path: str - absolute path to report template
+    report_path: str - absolute report path
+    report_data: str - report json data which converted to str
+    """
+    with open(report_template_path, 'r') as report_template:
+        raw_report = report_template.read()
+        if not raw_report:
+            logging.error('Report template is empty. Received path: {}'.format(report_template_path))
+            raise ValueError('Report template can\'t be empty. Received path: {}'.format(report_template_path))
+        filled_template = string.Template(raw_report).safe_substitute(table_json=report_data)
+        with open(report_path, 'w') as report:
+            logging.info('Writing report to: {}'.format(report_path))
+            report.write(filled_template.decode('utf-8'))
+
+
+def main(config):
+    result_config = get_result_config_dict(config)
 
     setup_logger(result_config.get('logging_level'), result_config.get('logging_path'))
     logging.info('Result config file parameters are: {}'.format(list(result_config.iteritems())))
@@ -327,9 +323,14 @@ def main(_config):
 
     logging.info('Processing log file: {}'.format(file_to_open.file_path))
     report_name = get_report_name(file_to_open)
-    report_directory = os.path.abspath(result_config['report_dir'])
-    if is_report_exist(report_name, report_directory):
-        logging.info('Report exists, report path: {}'.format(os.path.join(report_directory, report_name)))
+    if not report_name:
+        logging.error('Report name doesn\'t exist. Please make sure that processed log file is fine.'
+                      'Processed log file data: {}'.format(file_to_open))
+        sys.exit()
+
+    full_report_path = os.path.join(os.path.abspath(result_config['report_dir']), report_name)
+    if os.path.exists(full_report_path):
+        logging.info('Report exists, report path: {}'.format(full_report_path))
         sys.exit()
 
     report_data = [line for line in yield_report_row(yield_line_from_file(file_to_open), result_config['report_size'])]
@@ -338,12 +339,11 @@ def main(_config):
         logging.error('Parsed data result is empty. Please make sure, that provided log file is not empty')
         sys.exit()
 
-    with open(report_template_path, 'r') as report_template:
-        data_template = string.Template(report_template.read())
-        with open(os.path.join(report_directory, report_name), 'w') as processed_report:
-            logging.info('Writing report to: {}'.format(os.path.join(report_directory, report_name)))
-            processed_report.write(data_template.safe_substitute(table_json=json.dumps(report_data)).decode('utf-8'))
-
+    write_template_report(
+        report_template_path=report_template_path,
+        report_path=full_report_path,
+        report_data=json.dumps(report_data)
+    )
 
 if __name__ == '__main__':
     try:
