@@ -4,7 +4,6 @@
 import sys
 import os
 import gzip
-import copy
 import json
 import string
 import datetime
@@ -76,25 +75,6 @@ def get_median(arr):
     return arr[(arr_len // 2) + 1]
 
 
-def round_to_third_digit(number):
-    return round(number, 3)
-
-
-def get_dict_with_lower_case_keys(_dict):
-    """ Return new dict whose keys converted to lower case """
-    if not _dict:
-        return {}
-    return {key.lower(): value for key, value in _dict.iteritems()}
-
-
-def filter_none_dict_values(_dict):
-    """ Return new dict whose all values are not None
-    """
-    if not _dict:
-        return {}
-    return {key: value for key, value in _dict.iteritems() if value is not None}
-
-
 def setup_logger(logging_level, logging_path=None):
     """ Setup logging config for script
     logging_level: str - INFO|DEBUG|ERROR
@@ -131,24 +111,21 @@ def get_config_from_config_file(config_path):
         return {}
     config = ConfigParser.ConfigParser()
     config.read(os.path.abspath(config_path))
-    config = {key: value for key, value in config.items('log_parser') if value}
+    config = {key.lower(): value for key, value in config.items('log_parser') if value}
     if 'report_size' in config:
         config['report_size'] = int(config['report_size'])
     return config
 
 
-def get_result_config_dict(config):
+def get_result_config_dict(const_config, passed_config_path):
     """ Merge all config values
+    :param: default_config - default config dict
+    :param: passed_config_path - config path from called arguments
     return: dict
     """
-    arguments_dict = get_call_arguments()
-
-    default_config_path = config.pop('DEFAULT_CONFIG_PATH')
-    passed_config_path = arguments_dict.pop('config_path', None)
-
-    passed_config = filter_none_dict_values(get_config_from_config_file(passed_config_path))
-    default_config = filter_none_dict_values(get_config_from_config_file(default_config_path))
-    final_config = get_dict_with_lower_case_keys(copy.copy(config))
+    passed_config = get_config_from_config_file(passed_config_path)
+    default_config = get_config_from_config_file(const_config.pop('DEFAULT_CONFIG_PATH', None))
+    final_config = {key.lower(): value for key, value in const_config.iteritems()}
 
     final_config.update(default_config)
     final_config.update(passed_config)
@@ -197,6 +174,8 @@ def find_last_log_to_process(directory_path):
     for filename in os.listdir(log_path):
         parsed_filename = re.search(FILE_NAME_PATTERN, filename)
         if not parsed_filename:
+            logging.info('Can\'t parse filename. Please make sure that filename matches '
+                         'with regexp pattern. Provided filename: {}'.format(filename))
             return None
 
         parsed_filename = parsed_filename.groupdict()
@@ -221,16 +200,6 @@ def find_last_log_to_process(directory_path):
         parsed_date=max_parsed_filename['date'],
         extension=max_parsed_filename['extension'] or None
     )
-
-
-def get_report_name(parsed_file_name):
-    """ Return report filename
-    parsed_file_name: ParsedFileName
-    return: str - report name
-    """
-    if not parsed_file_name:
-        return None
-    return REPORT_NAME.format(parsed_file_name.parsed_date.strftime(REPORT_DATE_FORMAT))
 
 
 def yield_report_row(raw_row_chain, report_size):
@@ -274,17 +243,16 @@ def yield_report_row(raw_row_chain, report_size):
         raise ValueError('Unparsed row percentage is above the limit,'
                          'you need to check log file or regexp of the row parser}')
 
-    for url, query_stats in iter(
-            sorted(parsed_data.iteritems(), key=_get_time_sum_value, reverse=True)[:report_size]):
+    for url, query_stats in sorted(parsed_data.iteritems(), key=_get_time_sum_value, reverse=True)[:report_size]:
         yield {
             'url': url,
             'count': query_stats['query_counter'],
-            'count_perc': round_to_third_digit(query_stats['query_counter'] * 100 / all_row_counter),
-            'time_avg': round_to_third_digit(query_stats['time_sum'] / query_stats['query_counter']),
+            'count_perc': round(query_stats['query_counter'] * 100 / all_row_counter, 3),
+            'time_avg': round(query_stats['time_sum'] / query_stats['query_counter'], 3),
             'time_max': query_stats['time_max'],
-            'time_med': round_to_third_digit(get_median(query_stats['requests_time'])),
-            'time_perc': round_to_third_digit(query_stats['time_sum'] * 100 / all_requests_time_counter),
-            'time_sum': round_to_third_digit(query_stats['time_sum'])
+            'time_med': round(get_median(query_stats['requests_time']), 3),
+            'time_perc': round(query_stats['time_sum'] * 100 / all_requests_time_counter, 3),
+            'time_sum': round(query_stats['time_sum'], 3)
         }
 
 
@@ -306,7 +274,10 @@ def write_template_report(report_template_path, report_path, report_data):
 
 
 def main(config):
-    result_config = get_result_config_dict(config)
+
+    console_arguments = get_call_arguments()
+
+    result_config = get_result_config_dict(config, console_arguments.pop('config_path', None))
 
     setup_logger(result_config.get('logging_level'), result_config.get('logging_path'))
     logging.info('Result config file parameters are: {}'.format(list(result_config.iteritems())))
@@ -322,7 +293,7 @@ def main(config):
         sys.exit()
 
     logging.info('Processing log file: {}'.format(file_to_open.file_path))
-    report_name = get_report_name(file_to_open)
+    report_name = REPORT_NAME.format(file_to_open.parsed_date.strftime(REPORT_DATE_FORMAT))
     if not report_name:
         logging.error('Report name doesn\'t exist. Please make sure that processed log file is fine.'
                       'Processed log file data: {}'.format(file_to_open))
@@ -344,6 +315,7 @@ def main(config):
         report_path=full_report_path,
         report_data=json.dumps(report_data)
     )
+
 
 if __name__ == '__main__':
     try:
