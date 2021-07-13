@@ -123,12 +123,14 @@ def get_result_config_dict(const_config, passed_config_path):
     :param: passed_config_path - config path from called arguments
     return: dict
     """
-    passed_config = get_config_from_config_file(passed_config_path)
-    default_config = get_config_from_config_file(const_config.pop('DEFAULT_CONFIG_PATH', None))
-    final_config = {key.lower(): value for key, value in const_config.iteritems()}
 
-    final_config.update(default_config)
-    final_config.update(passed_config)
+    parsed_config_from_file = get_config_from_config_file(passed_config_path)
+
+    if not parsed_config_from_file:
+        return {}
+
+    final_config = {key.lower(): value for key, value in const_config.iteritems()}
+    final_config.update(parsed_config_from_file)
 
     return final_config
 
@@ -176,7 +178,7 @@ def find_last_log_to_process(directory_path):
         if not parsed_filename:
             logging.info('Can\'t parse filename. Please make sure that filename matches '
                          'with regexp pattern. Provided filename: {}'.format(filename))
-            return None
+            continue
 
         parsed_filename = parsed_filename.groupdict()
         try:
@@ -277,7 +279,12 @@ def main(config):
 
     console_arguments = get_call_arguments()
 
-    result_config = get_result_config_dict(config, console_arguments.pop('config_path', None))
+    config_from_file = console_arguments.pop('config_path', None) or config.pop('DEFAULT_CONFIG_PATH', None)
+    result_config = get_result_config_dict(config, config_from_file)
+    if not result_config:
+        logging.error('Result config is empty. Please check default config setup, or '
+                      'if you are running app with passed config, make sure that config is configured properly')
+        sys.exit()
 
     setup_logger(result_config.get('logging_level'), result_config.get('logging_path'))
     logging.info('Result config file parameters are: {}'.format(list(result_config.iteritems())))
@@ -293,12 +300,8 @@ def main(config):
         sys.exit()
 
     logging.info('Processing log file: {}'.format(file_to_open.file_path))
-    report_name = REPORT_NAME.format(file_to_open.parsed_date.strftime(REPORT_DATE_FORMAT))
-    if not report_name:
-        logging.error('Report name doesn\'t exist. Please make sure that processed log file is fine.'
-                      'Processed log file data: {}'.format(file_to_open))
-        sys.exit()
 
+    report_name = REPORT_NAME.format(file_to_open.parsed_date.strftime(REPORT_DATE_FORMAT))
     full_report_path = os.path.join(os.path.abspath(result_config['report_dir']), report_name)
     if os.path.exists(full_report_path):
         logging.info('Report exists, report path: {}'.format(full_report_path))
