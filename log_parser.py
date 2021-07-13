@@ -117,14 +117,14 @@ def get_config_from_config_file(config_path):
     return config
 
 
-def get_result_config_dict(const_config, passed_config_path):
+def get_result_config_dict(const_config, path_to_config_file):
     """ Merge all config values
     :param: default_config - default config dict
     :param: passed_config_path - config path from called arguments
     return: dict
     """
 
-    parsed_config_from_file = get_config_from_config_file(passed_config_path)
+    parsed_config_from_file = get_config_from_config_file(path_to_config_file)
 
     if not parsed_config_from_file:
         return {}
