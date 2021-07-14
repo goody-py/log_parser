@@ -103,34 +103,27 @@ def get_call_arguments():
     return vars(parser.parse_args())
 
 
-def get_config_from_config_file(config_path):
-    """ Parse config from received config file path
-    return: dict
-    """
-    if not config_path:
-        return {}
-    config = ConfigParser.ConfigParser()
-    config.read(os.path.abspath(config_path))
-    config = {key.lower(): value for key, value in config.items('log_parser') if value}
-    if 'report_size' in config:
-        config['report_size'] = int(config['report_size'])
-    return config
-
-
 def get_result_config_dict(const_config, path_to_config_file):
-    """ Merge all config values
+    """ Parse config file and merge it with default config
     :param: default_config - default config dict
-    :param: passed_config_path - config path from called arguments
+    :param: path_to_config_file - config file path
     return: dict
     """
-
-    parsed_config_from_file = get_config_from_config_file(path_to_config_file)
-
-    if not parsed_config_from_file:
+    if not path_to_config_file:
         return {}
+
+    config_parser = ConfigParser.ConfigParser()
+    config_parser.read(os.path.abspath(path_to_config_file))
+    config_from_file = {key.lower(): value for key, value in config_parser.items('log_parser') if value}
+
+    if not config_from_file:
+        return {}
+
+    if 'report_size' in config_from_file:
+        config_from_file['report_size'] = int(config_from_file['report_size'])
 
     final_config = {key.lower(): value for key, value in const_config.iteritems()}
-    final_config.update(parsed_config_from_file)
+    final_config.update(config_from_file)
 
     return final_config
 
@@ -186,7 +179,7 @@ def find_last_log_to_process(directory_path):
         except ValueError as ex:
             logging.exception('Can\'t parse filename date. Please make sure that date format in log name is fine. '
                               'Provided filename: {0} . {1}'.format(filename, ex))
-            return None
+            continue
 
         if max_parsed_filename and max_parsed_filename['date'] > parsed_filename['date']:
             continue
@@ -237,7 +230,7 @@ def yield_report_row(raw_row_chain, report_size):
         all_row_counter += 1
         all_requests_time_counter += request_time
 
-    failure_percentage = empty_or_unparsed_row_counter * 100 / all_row_counter
+    failure_percentage = round(empty_or_unparsed_row_counter * 100 / all_row_counter, 4)
     logging.info('Failure row parsing percentage is :{}%'.format(failure_percentage))
     if failure_percentage >= FAILURE_PERCENTAGE:
         logging.error('Unparsed rows are above the limit. Please make sure that log file is not corrupted or check '
@@ -282,9 +275,8 @@ def main(config):
     config_from_file = console_arguments.pop('config_path', None) or config.pop('DEFAULT_CONFIG_PATH', None)
     result_config = get_result_config_dict(config, config_from_file)
     if not result_config:
-        logging.error('Result config is empty. Please check default config setup, or '
-                      'if you are running app with passed config, make sure that config is configured properly')
-        sys.exit()
+        raise ValueError('Result config is empty. Please check default file config setup, or '
+                         'if you are running app with passed config, make sure that config is configured properly')
 
     setup_logger(result_config.get('logging_level'), result_config.get('logging_path'))
     logging.info('Result config file parameters are: {}'.format(list(result_config.iteritems())))
